@@ -68,6 +68,8 @@ function App() {
   const [currHistory,    setCurrHistory]    = useState([]);
 
   const alertHistoryRef = useRef(new Set());
+  const bladePositionTimerRef = useRef(null);
+  const bladePositionPressedRef = useRef(false);
 
   /* Firebase listeners */
   useEffect(() => {
@@ -75,7 +77,10 @@ function App() {
     const u2 = listenSensorData((d)     => setSensorDataState(d));
     const u3 = listenMotorCommands((d)  => setMotorCommandsState(d));
     const u4 = listenEmergencyStop((d)  => setEmergencyStopState(d));
-    return () => { u1(); u2(); u3(); u4(); };
+    return () => {
+      u1(); u2(); u3(); u4();
+      if (bladePositionTimerRef.current) clearTimeout(bladePositionTimerRef.current);
+    };
   }, []);
 
   /* Backend poll */
@@ -171,8 +176,29 @@ function App() {
   const increaseSpeed = () => setRobotSpeed(Math.min(currentSpeed + 10, 250));
   const decreaseSpeed = () => setRobotSpeed(Math.max(currentSpeed - 10, 10));
   const dir           = (v) => setRobotDirection(v);
-  const startBPos     = (v) => setBladePosition(v);
-  const stopBPos      = ()  => setBladePosition("S");
+  const startBPos     = (v) => {
+    if (v === "S") {
+      stopBPos();
+      return;
+    }
+    if (bladePositionPressedRef.current) return;
+
+    bladePositionPressedRef.current = true;
+    setBladePosition(v);
+
+    bladePositionTimerRef.current = setTimeout(() => {
+      setBladePosition("S");
+      bladePositionTimerRef.current = null;
+    }, 2000);
+  };
+  const stopBPos      = ()  => {
+    bladePositionPressedRef.current = false;
+    if (bladePositionTimerRef.current) {
+      clearTimeout(bladePositionTimerRef.current);
+      bladePositionTimerRef.current = null;
+    }
+    setBladePosition("S");
+  };
 
   const sensorItems = [
     { label: "Current",      value: sensorData["1_Current"],         unit: " A",  dot: "green"  },
@@ -352,18 +378,17 @@ function App() {
             <div className="card-body">
               <div className="bpos-row">
                 <button className="bpos-btn up"
-                  onMouseDown={() => startBPos("U")} onMouseUp={stopBPos}
-                  onMouseLeave={stopBPos} onTouchStart={() => startBPos("U")} onTouchEnd={stopBPos}>
+                  onPointerDown={() => startBPos("U")} onPointerUp={stopBPos}
+                  onPointerLeave={stopBPos} onPointerCancel={stopBPos}>
                   ▲ UP
                 </button>
                 <button className="bpos-btn stp"
-                  onMouseDown={() => startBPos("S")} onMouseUp={stopBPos}
-                  onMouseLeave={stopBPos} onTouchStart={() => startBPos("S")} onTouchEnd={stopBPos}>
+                  onPointerDown={() => startBPos("S")}>
                   ■ STOP
                 </button>
                 <button className="bpos-btn dn"
-                  onMouseDown={() => startBPos("D")} onMouseUp={stopBPos}
-                  onMouseLeave={stopBPos} onTouchStart={() => startBPos("D")} onTouchEnd={stopBPos}>
+                  onPointerDown={() => startBPos("D")} onPointerUp={stopBPos}
+                  onPointerLeave={stopBPos} onPointerCancel={stopBPos}>
                   ▼ DOWN
                 </button>
               </div>
